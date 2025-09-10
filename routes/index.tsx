@@ -27,7 +27,7 @@ export default function Home({ data }: PageProps<Data>) {
   return (
     <div>
       <h1>Welcome!</h1>
-      <p>This is the protected home page.</p>
+      <p>This is the protected home page 11.</p>
       <a href="/logout">Logout</a>
     </div>
   );
