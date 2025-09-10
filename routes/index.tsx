@@ -1,49 +1,34 @@
-/*
-import { useSignal } from "@preact/signals";
-import Counter from "../islands/Counter.tsx";
+// routes/index.tsx
+import { Handlers, PageProps } from "$fresh/server.ts";
 
-export default function Home() {
-  const count = useSignal(3);
+interface Data {
+  isAuthenticated: boolean;
+}
+
+export const handler: Handlers<Data> = {
+  GET(req, ctx) {
+    const cookie = req.headers.get("cookie");
+    const isAuthenticated = cookie?.includes("auth=true") || false;
+
+    if (isAuthenticated) {
+      return ctx.render({ isAuthenticated: true });
+    }
+
+    // Redirect to login if not authenticated
+    return new Response(null, { status: 302, headers: { Location: "/login" } });
+  },
+};
+
+export default function Home({ data }: PageProps<Data>) {
+  if (!data.isAuthenticated) {
+    return null; // Won't be reached due to redirect
+  }
+
   return (
-    <div class="px-4 py-8 mx-auto bg-[#86efac]">
-      <div class="max-w-screen-md mx-auto flex flex-col items-center justify-center">
-        <img
-          class="my-6"
-          src="/logo.svg"
-          width="128"
-          height="128"
-          alt="the Fresh logo: a sliced lemon dripping with juice"
-        />
-        <h1 class="text-4xl font-bold">Welcome to Fresh!</h1>
-        <p class="my-4">
-          Try updating this message in the
-          <code class="mx-2">./routes/index.tsx</code> file, and reFresh.
-        </p>
-        <Counter count={count} />
-      </div>
+    <div>
+      <h1>Welcome!</h1>
+      <p>This is the protected home page.</p>
+      <a href="/logout">Logout</a>
     </div>
   );
 }
-*/
-
-// routes/index.tsx
-import { defineRoute } from "$fresh/server.ts";
-
-export default defineRoute(() => {
-  const testVar = Deno.env.get("TEST_VAR") ?? "Default value (not set)";
-  return (
-    <div class="p-4 mx-auto max-w-screen-md">
-      <img
-        width="256"
-        height="256"
-        class="my-6"
-        src="/logo.svg"
-        alt="the fresh logo: a sliced mango sitting on the corner of a salad"
-      />
-      <h1 class="text-2xl font-bold">Hello world!</h1>
-      <p class="my-6">
-        This is a test environment variable: <strong>{testVar}</strong>
-      </p>
-    </div>
-  );
-});
