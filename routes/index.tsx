@@ -1,3 +1,4 @@
+/*
 import { useSignal } from "@preact/signals";
 import Counter from "../islands/Counter.tsx";
 
@@ -23,3 +24,26 @@ export default function Home() {
     </div>
   );
 }
+*/
+
+// routes/index.tsx
+import { defineRoute } from "$fresh/server.ts";
+
+export default defineRoute(() => {
+  const testVar = Deno.env.get("TEST_VAR") ?? "Default value (not set)";
+  return (
+    <div class="p-4 mx-auto max-w-screen-md">
+      <img
+        width="256"
+        height="256"
+        class="my-6"
+        src="/logo.svg"
+        alt="the fresh logo: a sliced mango sitting on the corner of a salad"
+      />
+      <h1 class="text-2xl font-bold">Hello world!</h1>
+      <p class="my-6">
+        This is a test environment variable: <strong>{testVar}</strong>
+      </p>
+    </div>
+  );
+});
