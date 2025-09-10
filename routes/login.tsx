@@ -6,7 +6,7 @@ export const handler: Handlers = {
     const form = await req.formData();
     const password = form.get("password")?.toString();
 
-    const HARD_CODED_PASSWORD = "secret123";
+    const HARD_CODED_PASSWORD = "123";
 
     if (password === HARD_CODED_PASSWORD) {
       // Set auth cookie
