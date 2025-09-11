@@ -1,34 +1,12 @@
 // routes/index.tsx
-import { Handlers, PageProps } from "$fresh/server.ts";
+import { Handlers } from "$fresh/server.ts";
 
-interface Data {
-  envVar: string;
-}
-
-export const handler: Handlers<Data> = {
-  GET(_req, ctx) {
-    // Retrieve the environment variable
-    const envVar = Deno.env.get("TEST_VAR") || "Not set";
-    return ctx.render({ envVar });
+export const handler: Handlers = {
+  GET(req) {
+    // Get the full URL from the request
+    const url = new URL(req.url);
+    // Construct the full URL for /login
+    const loginUrl = `${url.origin}/login`;
+    return Response.redirect(loginUrl, 302);
   },
 };
-/*
-export default function Home({ data }: PageProps<Data>) {
-  return (
-    <div style={{ marginLeft: "1cm" }}>
-      <h1>Welcome to the Home Page!!!</h1>
-      <p>Environment Variable: {data.envVar}</p>
-    </div>
-  );
-}
-*/
-export default function Home({ data }: PageProps<Data>) {
-  return (
-    <div className="ml-4 text-blue-600">
-      <h1>Welcome to the Home Page!!!</h1>
-      <p>
-        Environment Variable: <span className="text-blue-300 text-[30px]">{data.envVar}</span>
-      </p>
-    </div>
-  );
-}

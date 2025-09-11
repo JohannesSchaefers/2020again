@@ -2,39 +2,51 @@
 import { Handlers, PageProps } from "$fresh/server.ts";
 
 export const handler: Handlers = {
-  async POST(req) {
+  GET(_req, ctx) {
+    return ctx.render();
+  },
+  async POST(req, ctx) {
     const form = await req.formData();
-    const password = form.get("password")?.toString();
+    const password = form.get("password");
 
-    const HARD_CODED_PASSWORD = "12345";
-
-    if (password === HARD_CODED_PASSWORD) {
-      // Set auth cookie
-      const headers = new Headers({
-        Location: "/",
-        "Set-Cookie": "auth=true; Path=/; HttpOnly; SameSite=Strict",
-      });
+    // Example: Validate password (replace with real auth logic)
+    if (password === "password") { // Replace with your password check
+      const headers = new Headers();
+      headers.set("set-cookie", "session=valid; Path=/; HttpOnly; SameSite=Strict");
+      headers.set("Location", "/home");
       return new Response(null, { status: 302, headers });
     }
 
-    // Redirect back to login on failure
-    return new Response(null, { status: 302, headers: { Location: "/login?error=invalid" } });
+    // On failure, re-render with an error
+    return ctx.render({ error: "Invalid password" });
   },
 };
 
-export default function LoginPage({ url }: PageProps) {
-  const error = new URL(url).searchParams.get("error");
+export default function Login({ data }: PageProps<{ error?: string }>) {
   return (
-    <div>
-      <h1>Login</h1>
-      {error && <p style={{ color: "red" }}>Invalid password</p>}
-      <form method="POST">
-        <div>
-          <label>Password: </label>
-          <input type="password" name="password" required />
-        </div>
-        <button type="submit">Login</button>
-      </form>
+    <div class="flex items-center justify-center min-h-screen bg-gray-100">
+      <div class="p-6 bg-white rounded shadow-md">
+        <h1 class="text-2xl font-bold text-blue-600 mb-4">Login</h1>
+        {data?.error && <p class="text-red-500 mb-4">{data.error}</p>}
+        <form method="POST">
+          <div class="mb-4">
+            <label class="block text-gray-700">Password</label>
+            <input
+              type="password"
+              name="password"
+              class="w-full p-2 border rounded"
+              placeholder="Enter password"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Login
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
