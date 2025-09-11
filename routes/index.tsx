@@ -27,7 +27,7 @@ export default function Home({ data }: PageProps<Data>) {
     <div className="ml-4 text-blue-600">
       <h1>Welcome to the Home Page!!!</h1>
       <p>
-        Environment Variable: <span className="text-green-300 text-[20px]">{data.envVar}</span>
+        Environment Variable: <span className="text-blue-300 text-[30px]">{data.envVar}</span>
       </p>
     </div>
   );
