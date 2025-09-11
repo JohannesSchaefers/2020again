@@ -12,10 +12,19 @@ export const handler: Handlers<Data> = {
     return ctx.render({ envVar });
   },
 };
-
+/*
 export default function Home({ data }: PageProps<Data>) {
   return (
     <div style={{ marginLeft: "1cm" }}>
+      <h1>Welcome to the Home Page!!!</h1>
+      <p>Environment Variable: {data.envVar}</p>
+    </div>
+  );
+}
+*/
+export default function Home({ data }: PageProps<Data>) {
+  return (
+    <div className="ml-4 text-blue-600">
       <h1>Welcome to the Home Page!!!</h1>
       <p>Environment Variable: {data.envVar}</p>
     </div>
