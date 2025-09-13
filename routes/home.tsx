@@ -2,9 +2,14 @@
 import { Handlers, PageProps } from "$fresh/server.ts";
 
 // Define types for PageProps
+interface BucketObject {
+  key: string;
+  url?: string; // Presigned URL for PDFs
+}
+
 interface Data {
   envVar: string;
-  bucketObjects?: string[]; // List of object keys from R2
+  bucketObjectsWithUrls?: BucketObject[]; // List of objects with keys and optional URLs from R2
   error?: string; // Optional error message
 }
 
@@ -26,13 +31,14 @@ export const handler: Handlers<Data> = {
     const endpoint = Deno.env.get("R2_CUSTOM_DOMAIN") || Deno.env.get("R2_ENDPOINT");
     const region = "auto"; // R2 uses 'auto' for region
 
-    let bucketObjects: string[] = [];
+    let bucketObjectsWithUrls: BucketObject[] = [];
     let error: string | undefined;
 
     if (accessKeyId && secretAccessKey && bucketName && endpoint) {
       try {
         // Import AWS SDK for S3 (ESM import; Deno-compatible with proper scoped URL)
-        const { S3Client, ListObjectsV2Command } = await import("https://esm.sh/@aws-sdk/client-s3?dts");
+        const { S3Client, ListObjectsV2Command, GetObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3?dts");
+        const { getSignedUrl } = await import("https://esm.sh/@aws-sdk/s3-request-presigner?dts");
 
         // Create S3 client configured for R2
         const s3Client = new S3Client({
@@ -50,7 +56,24 @@ export const handler: Handlers<Data> = {
         const response = await s3Client.send(command);
 
         if (response.Contents) {
-          bucketObjects = response.Contents.map((obj) => obj.Key!).filter(Boolean);
+          const keys = response.Contents.map((obj) => obj.Key!).filter(Boolean);
+          
+          // Generate presigned URLs only for PDFs
+          bucketObjectsWithUrls = await Promise.all(
+            keys.map(async (key) => {
+              let url: string | undefined;
+              if (key.toLowerCase().endsWith('.pdf')) {
+                try {
+                  const getCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
+                  url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 }); // 1 hour expiration
+                } catch (signErr) {
+                  console.error(`Failed to generate presigned URL for ${key}:`, signErr);
+                  // Fall back to no URL if signing fails
+                }
+              }
+              return { key, url };
+            })
+          );
         }
       } catch (err) {
         // Type guard to narrow 'err' from unknown to Error
@@ -61,7 +84,7 @@ export const handler: Handlers<Data> = {
       error = "Missing R2 environment variables. Check your Deno Deploy settings.";
     }
 
-    return ctx.render({ envVar, bucketObjects, error });
+    return ctx.render({ envVar, bucketObjectsWithUrls, error });
   },
 };
 
@@ -78,10 +101,23 @@ export default function Home({ data }: PageProps<Data>) {
       {!data.error && (
         <div class="mt-4">
           <h2 class="text-2xl font-semibold">R2 Bucket Objects:</h2>
-          {data.bucketObjects && data.bucketObjects.length > 0 ? (
-            <ul class="list-disc list-inside mt-2">
-              {data.bucketObjects.map((key, index) => (
-                <li key={index} class="text-gray-800">{key}</li>
+          {data.bucketObjectsWithUrls && data.bucketObjectsWithUrls.length > 0 ? (
+            <ul class="list-disc list-inside mt-2 space-y-1">
+              {data.bucketObjectsWithUrls.map((obj, index) => (
+                <li key={index} class="text-gray-800">
+                  {obj.url ? (
+                    <a
+                      href={obj.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-blue-500 hover:underline"
+                    >
+                      {obj.key} (PDF)
+                    </a>
+                  ) : (
+                    obj.key
+                  )}
+                </li>
               ))}
             </ul>
           ) : (
