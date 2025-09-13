@@ -8,7 +8,6 @@ interface BucketObject {
 }
 
 interface Data {
-  envVar: string;
   bucketObjectsWithUrls?: BucketObject[]; // List of objects with keys and optional URLs from R2
   error?: string; // Optional error message
 }
@@ -20,9 +19,6 @@ export const handler: Handlers<Data> = {
     if (!isAuthenticated) {
       return Response.redirect("/login", 302); // Redirect to login if not authenticated
     }
-
-    // Fetch environment variable from Deno Deploy
-    const envVar = Deno.env.get("TEST_VAR") || "Default Value";
 
     // R2 environment variables
     const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
@@ -84,23 +80,20 @@ export const handler: Handlers<Data> = {
       error = "Missing R2 environment variables. Check your Deno Deploy settings.";
     }
 
-    return ctx.render({ envVar, bucketObjectsWithUrls, error });
+    return ctx.render({ bucketObjectsWithUrls, error });
   },
 };
 
 export default function Home({ data }: PageProps<Data>) {
   return (
     <div class="ml-4 text-blue-600">
-      <h1 class="text-3xl font-bold">Welcome to the Home Page!!!</h1>
-      <p>
-        Environment Variable: <span class="text-green-300 text-xl">{data.envVar}</span>
-      </p>
+      <h1 class="text-3xl font-bold">Welcome to the Homepage</h1>
       {data.error && (
         <p class="text-red-500 mt-4">{data.error}</p>
       )}
       {!data.error && (
         <div class="mt-4">
-          <h2 class="text-2xl font-semibold">R2 Bucket Objects:</h2>
+          <h2 class="text-2xl font-semibold">Gespeicherte Dateien:</h2>
           {data.bucketObjectsWithUrls && data.bucketObjectsWithUrls.length > 0 ? (
             <ul class="list-disc list-inside mt-2 space-y-1">
               {data.bucketObjectsWithUrls.map((obj, index) => (
