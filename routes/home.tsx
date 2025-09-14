@@ -1,71 +1,59 @@
 // routes/home.tsx
 import { Handlers, PageProps } from "$fresh/server.ts";
 
-// Define types for PageProps
 interface BucketObject {
   key: string;
-  url?: string; // Presigned URL for PDFs
+  url?: string;
 }
 
 interface Data {
-  bucketObjectsWithUrls?: BucketObject[]; // List of objects with keys and optional URLs from R2
-  successMessage?: string; // Optional success message for uploads
-  error?: string; // Optional error message
+  bucketObjectsWithUrls?: BucketObject[];
+  successMessage?: string;
+  error?: string;
 }
 
 export const handler: Handlers<Data> = {
   async GET(req, ctx) {
-    // Check for session cookie (replace with real auth check for production)
     const isAuthenticated = req.headers.get("cookie")?.includes("session=valid");
     if (!isAuthenticated) {
-      return Response.redirect("/login", 302); // Redirect to login if not authenticated
+      return Response.redirect("/login", 302);
     }
 
-    // R2 environment variables
     const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
     const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
     const bucketName = Deno.env.get("R2_BUCKET_NAME");
     const endpoint = Deno.env.get("R2_CUSTOM_DOMAIN") || Deno.env.get("R2_ENDPOINT");
-    const region = "auto"; // R2 uses 'auto' for region
+    const region = "auto";
 
     let bucketObjectsWithUrls: BucketObject[] = [];
     let error: string | undefined;
 
     if (accessKeyId && secretAccessKey && bucketName && endpoint) {
       try {
-        // Import AWS SDK for S3
         const { S3Client, ListObjectsV2Command, GetObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3?dts");
         const { getSignedUrl } = await import("https://esm.sh/@aws-sdk/s3-request-presigner?dts");
 
-        // Create S3 client configured for R2
         const s3Client = new S3Client({
           region,
           endpoint,
-          credentials: {
-            accessKeyId,
-            secretAccessKey,
-          },
-          forcePathStyle: false, // Use virtual-hosted style for R2
+          credentials: { accessKeyId, secretAccessKey },
+          forcePathStyle: false,
         });
 
-        // List objects in the bucket
         const command = new ListObjectsV2Command({ Bucket: bucketName });
         const response = await s3Client.send(command);
 
         if (response.Contents) {
           const keys = response.Contents.map((obj) => obj.Key!).filter(Boolean);
-          
-          // Generate presigned URLs only for PDFs
           bucketObjectsWithUrls = await Promise.all(
             keys.map(async (key) => {
               let url: string | undefined;
               if (key.toLowerCase().endsWith('.pdf')) {
                 try {
                   const getCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
-                  url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 }); // 1 hour expiration
+                  url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
                 } catch (signErr) {
                   console.error(`Failed to generate presigned URL for ${key}:`, signErr);
-                  // Fall back to no URL if signing fails
                 }
               }
               return { key, url };
@@ -73,7 +61,6 @@ export const handler: Handlers<Data> = {
           );
         }
       } catch (err) {
-        // Type guard to narrow 'err' from unknown to Error
         const message = err instanceof Error ? err.message : "An unknown error occurred";
         error = `Failed to access R2 bucket: ${message}`;
       }
@@ -85,18 +72,16 @@ export const handler: Handlers<Data> = {
   },
 
   async POST(req, ctx) {
-    // Check for session cookie (replace with real auth check for production)
     const isAuthenticated = req.headers.get("cookie")?.includes("session=valid");
     if (!isAuthenticated) {
-      return Response.redirect("/login", 302); // Redirect to login if not authenticated
+      return Response.redirect("/login", 302);
     }
 
-    // R2 environment variables
     const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
     const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
     const bucketName = Deno.env.get("R2_BUCKET_NAME");
     const endpoint = Deno.env.get("R2_CUSTOM_DOMAIN") || Deno.env.get("R2_ENDPOINT");
-    const region = "auto"; // R2 uses 'auto' for region
+    const region = "auto";
 
     let bucketObjectsWithUrls: BucketObject[] = [];
     let successMessage: string | undefined;
@@ -104,61 +89,47 @@ export const handler: Handlers<Data> = {
 
     if (accessKeyId && secretAccessKey && bucketName && endpoint) {
       try {
-        // Import AWS SDK for S3
         const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3?dts");
         const { getSignedUrl } = await import("https://esm.sh/@aws-sdk/s3-request-presigner?dts");
 
-        // Create S3 client configured for R2
         const s3Client = new S3Client({
           region,
           endpoint,
-          credentials: {
-            accessKeyId,
-            secretAccessKey,
-          },
-          forcePathStyle: false, // Use virtual-hosted style for R2
+          credentials: { accessKeyId, secretAccessKey },
+          forcePathStyle: false,
         });
 
-        // Parse form data
         const formData = await req.formData();
         const file = formData.get("file") as File;
 
         if (!file) {
           error = "No file selected for upload.";
         } else {
-          // Read file content as ArrayBuffer
           const fileBuffer = await file.arrayBuffer();
-
-          // Upload file to R2
           const command = new PutObjectCommand({
             Bucket: bucketName,
             Key: file.name,
             Body: new Uint8Array(fileBuffer),
             ContentType: file.type,
           });
-
           await s3Client.send(command);
           successMessage = `File "${file.name}" uploaded successfully!`;
         }
 
-        // Refresh the list of objects after upload
         const listCommand = new ListObjectsV2Command({ Bucket: bucketName });
         const response = await s3Client.send(listCommand);
 
         if (response.Contents) {
           const keys = response.Contents.map((obj) => obj.Key!).filter(Boolean);
-          
-          // Generate presigned URLs only for PDFs
           bucketObjectsWithUrls = await Promise.all(
             keys.map(async (key) => {
               let url: string | undefined;
               if (key.toLowerCase().endsWith('.pdf')) {
                 try {
                   const getCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
-                  url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 }); // 1 hour expiration
+                  url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
                 } catch (signErr) {
                   console.error(`Failed to generate presigned URL for ${key}:`, signErr);
-                  // Fall back to no URL if signing fails
                 }
               }
               return { key, url };
@@ -166,7 +137,6 @@ export const handler: Handlers<Data> = {
           );
         }
       } catch (err) {
-        // Type guard to narrow 'err' from unknown to Error
         const message = err instanceof Error ? err.message : "An unknown error occurred";
         error = `Failed to upload file or access R2 bucket: ${message}`;
       }
@@ -195,13 +165,13 @@ export default function Home({ data }: PageProps<Data>) {
               type="file"
               id="file"
               name="file"
-              accept="*/*" // Adjust accept attribute as needed (e.g., ".pdf" for PDFs only)
-              class="border border-gray-300 p-2 rounded text-gray-800"
+              accept="*/*"
+              class="text-gray-800"
             />
           </div>
           <button
             type="submit"
-            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            class="bg-blue-500 text-white px-4 py-2 rounded"
           >
             Upload
           </button>
