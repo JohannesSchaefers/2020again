@@ -10,10 +10,9 @@ interface ResponseData {
 }
 
 export const handler: Handlers = {
-  async POST(req, _ctx) {
-    // Basic authentication check (replace with real auth in production)
-    const isAuthenticated = req.headers.get("cookie")?.includes("session=valid");
-    if (!isAuthenticated) {
+  async POST(req, ctx) {
+    // Simple auth check (replace with real auth in production)
+    if (!req.headers.get("cookie")?.includes("session=valid")) {
       return Response.redirect("/login", 302);
     }
 
@@ -23,37 +22,32 @@ export const handler: Handlers = {
     const bucketName = Deno.env.get("R2_BUCKET_NAME");
     const endpoint = Deno.env.get("R2_ENDPOINT");
 
-    // Check for required environment variables
     if (!accessKeyId || !secretAccessKey || !bucketName || !endpoint) {
-      return new Response(JSON.stringify({ error: "Missing R2 configuration" }), {
+      return new Response(JSON.stringify({ error: "Missing R2 setup" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
     }
 
     try {
-      // Parse form data
       const formData = await req.formData();
       const file = formData.get("pdf");
 
       if (!(file instanceof File) || file.type !== "application/pdf") {
-        return new Response(JSON.stringify({ error: "Invalid or missing PDF file" }), {
+        return new Response(JSON.stringify({ error: "Please upload a valid PDF" }), {
           status: 400,
           headers: { "Content-Type": "application/json" },
         });
       }
 
-      // Create S3 client for R2
+      const fileName = file.name; // Keep original name, e.g., "Orgchart (1).pdf"
+
       const s3Client = new S3Client({
         region: "auto",
         endpoint,
         credentials: { accessKeyId, secretAccessKey },
       });
 
-      // Generate unique file name
-      const fileName = `${crypto.randomUUID()}_${file.name}`;
-
-      // Upload to R2
       await s3Client.send(
         new PutObjectCommand({
           Bucket: bucketName,
@@ -63,7 +57,6 @@ export const handler: Handlers = {
         })
       );
 
-      // Generate presigned URL
       const url = await getSignedUrl(
         s3Client,
         new GetObjectCommand({ Bucket: bucketName, Key: fileName }),
