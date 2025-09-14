@@ -1,77 +1,70 @@
-// routes/api/upload.ts
-import { Handlers } from "$fresh/server.ts";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "https://esm.sh/@aws-sdk/client-s3@3.645.0?dts";
-import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.645.0?dts";
+// static/upload.js
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('upload-form');
+  const successMessage = document.getElementById('success-message');
+  const pdfList = document.getElementById('pdf-list');
+  const uploadButton = document.getElementById('upload-button');
+  const loadingSpinner = document.getElementById('loading-spinner');
 
-interface ResponseData {
-  message?: string;
-  error?: string;
-  file?: { key: string; url: string };
-}
+  if (
+    !(form instanceof HTMLFormElement) ||
+    !(successMessage instanceof HTMLElement) ||
+    !(pdfList instanceof HTMLElement) ||
+    !(uploadButton instanceof HTMLButtonElement) ||
+    !(loadingSpinner instanceof HTMLElement)
+  ) {
+    console.error('Missing or incorrect DOM elements.');
+    return;
+  }
 
-export const handler: Handlers = {
-  async POST(req, _ctx) {
-    // Simple auth check (replace with real auth in production)
-    if (!req.headers.get("cookie")?.includes("session=valid")) {
-      return Response.redirect("/login", 302);
-    }
-
-    // R2 environment variables
-    const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
-    const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
-    const bucketName = Deno.env.get("R2_BUCKET_NAME");
-    const endpoint = Deno.env.get("R2_ENDPOINT");
-
-    if (!accessKeyId || !secretAccessKey || !bucketName || !endpoint) {
-      return new Response(JSON.stringify({ error: "Missing R2 setup" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    successMessage.classList.add('hidden');
+    uploadButton.disabled = true;
+    loadingSpinner.classList.remove('hidden');
 
     try {
-      const formData = await req.formData();
-      const file = formData.get("pdf");
+      const response = await fetch('/', {
+        method: 'POST',
+        body: new FormData(form),
+      });
+      const data = await response.json();
 
-      if (!(file instanceof File) || file.type !== "application/pdf") {
-        return new Response(JSON.stringify({ error: "Please upload a valid PDF" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+      uploadButton.disabled = false;
+      loadingSpinner.classList.add('hidden');
+
+      if (data.error) {
+        successMessage.classList.remove('hidden');
+        successMessage.classList.add('bg-red-100', 'text-red-700');
+        successMessage.textContent = data.error;
+        return;
       }
 
-      const fileName = file.name; // Keep original name, e.g., "Orgchart (1).pdf"
+      successMessage.classList.remove('hidden');
+      successMessage.classList.add('bg-green-100', 'text-green-700');
+      successMessage.textContent = `Nice one! Your PDF ‘${data.file.key}’ is uploaded!`;
 
-      const s3Client = new S3Client({
-        region: "auto",
-        endpoint,
-        credentials: { accessKeyId, secretAccessKey },
-      });
+      const li = document.createElement('li');
+      li.className = 'flex items-center justify-between p-2 bg-gray-100 rounded';
+      li.innerHTML = `
+        <a href="${data.file.url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline truncate max-w-xs">
+          ${data.file.key}
+        </a>
+        <form action="/api/delete?name=${encodeURIComponent(data.file.key)}" method="post" class="inline">
+          <button type="submit" class="text-red-500 hover:underline">Delete</button>
+        </form>
+      `;
+      pdfList.prepend(li);
 
-      await s3Client.send(
-        new PutObjectCommand({
-          Bucket: bucketName,
-          Key: fileName,
-          Body: await file.arrayBuffer(),
-          ContentType: "application/pdf",
-        })
-      );
-
-      const url = await getSignedUrl(
-        s3Client,
-        new GetObjectCommand({ Bucket: bucketName, Key: fileName }),
-        { expiresIn: 3600 }
-      );
-
-      return new Response(
-        JSON.stringify({ message: "PDF uploaded", file: { key: fileName, url } }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      form.reset();
+      const noPdfsMessage = pdfList.querySelector('li.text-gray-500');
+      if (noPdfsMessage) noPdfsMessage.remove();
     } catch (err) {
-      return new Response(
-        JSON.stringify({ error: `Upload failed: ${err instanceof Error ? err.message : "Unknown error"}` }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      uploadButton.disabled = false;
+      loadingSpinner.classList.add('hidden');
+      successMessage.classList.remove('hidden');
+      successMessage.classList.add('bg-red-100', 'text-red-700');
+      successMessage.textContent = `Oops, something went wrong: ${err instanceof Error ? err.message : 'Unknown error'}`;
     }
-  },
-};
+  });
+});
