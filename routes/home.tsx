@@ -246,7 +246,7 @@ export default function Home({ data }: PageProps<Data>) {
       <h2 class="text-xl font-semibold mb-2">Hochgeladene PDFs</h2>
       <ul>
         {(!data.bucketObjectsWithUrls || data.bucketObjectsWithUrls.length === 0) && (
-          <li class="text-gray-500">Keine PDFs gefunden.</li>
+          <li class="text-gray-500">Keine PDFs gefunden!</li>
         )}
         {data.bucketObjectsWithUrls?.map((obj) => (
           <li key={obj.key} class="mb-2 flex items-center gap-2">
