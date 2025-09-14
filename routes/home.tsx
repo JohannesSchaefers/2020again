@@ -210,7 +210,7 @@ export default function Home({ data }: PageProps<Data>) {
               ))}
             </ul>
           ) : (
-            <p class="text-gray-500 mt-2">No objects found in the bucket (or bucket is empty).</p>
+            <p class="text-gray-500 mt-2">No objects found in the bucket (or bucket is empty!).</p>
           )}
         </div>
       )}
