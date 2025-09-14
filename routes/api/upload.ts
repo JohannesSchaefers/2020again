@@ -1,5 +1,6 @@
 // static/upload.js
 document.addEventListener('DOMContentLoaded', () => {
+  // Get DOM elements with explicit type checks
   const form = document.getElementById('upload-form');
   const successMessage = document.getElementById('success-message');
   const pdfList = document.getElementById('pdf-list');
@@ -18,10 +19,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+  // Handle form submission
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    
+    // Reset UI state
     successMessage.classList.add('hidden');
-    uploadButton.disabled = true; // Now TypeScript knows uploadButton is HTMLButtonElement
+    uploadButton.disabled = true; // Safe: uploadButton is HTMLButtonElement
     loadingSpinner.classList.remove('hidden');
 
     const formData = new FormData(form);
@@ -33,9 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await response.json();
 
+      // Restore UI state
       uploadButton.disabled = false;
       loadingSpinner.classList.add('hidden');
 
+      // Handle server error
       if (data.error) {
         successMessage.classList.remove('hidden', 'bg-green-100', 'text-green-800');
         successMessage.classList.add('bg-red-100', 'text-red-800');
@@ -75,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         noPdfsMessage.remove();
       }
     } catch (err) {
+      // Handle client-side errors
       uploadButton.disabled = false;
       loadingSpinner.classList.add('hidden');
       successMessage.classList.remove('hidden', 'bg-green-100', 'text-green-800');
