@@ -1,7 +1,7 @@
 // routes/api/upload.ts
 import { Handlers } from "$fresh/server.ts";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "https://esm.sh/@aws-sdk/client-s3@3.645.0?dts";
-import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@ públicas
+import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.645.0?dts";
 
 interface ResponseData {
   message?: string;
@@ -10,7 +10,7 @@ interface ResponseData {
 }
 
 export const handler: Handlers = {
-  async POST(req, ctx) {
+  async POST(req, _ctx) {
     // Basic authentication check (replace with real auth in production)
     const isAuthenticated = req.headers.get("cookie")?.includes("session=valid");
     if (!isAuthenticated) {
