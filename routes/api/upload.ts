@@ -8,7 +8,7 @@ interface ResponseData {
 }
 
 export const handler: Handlers = {
-  async POST(req, ctx) {
+  async POST(req, _ctx) {
     // Prüfe auf Session-Cookie (ersetze durch echte Authentifizierung für Produktion)
     const isAuthenticated = req.headers.get("cookie")?.includes("session=valid");
     if (!isAuthenticated) {
@@ -22,7 +22,7 @@ export const handler: Handlers = {
     const endpoint = Deno.env.get("R2_CUSTOM_DOMAIN") || Deno.env.get("R2_ENDPOINT");
     const region = "auto";
 
-    let responseData: ResponseData = {};
+    const responseData: ResponseData = {};
 
     if (!accessKeyId || !secretAccessKey || !bucketName || !endpoint) {
       responseData.error = "Missing R2 environment variables. Check your Deno Deploy settings.";
