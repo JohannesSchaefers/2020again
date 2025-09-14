@@ -10,7 +10,7 @@ interface ResponseData {
 }
 
 export const handler: Handlers = {
-  async POST(req, ctx) {
+  async POST(req, _ctx) {
     // Simple auth check (replace with real auth in production)
     if (!req.headers.get("cookie")?.includes("session=valid")) {
       return Response.redirect("/login", 302);
