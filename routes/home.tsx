@@ -181,7 +181,7 @@ export default function Home({ data }: PageProps<Data>) {
         ))}
       </ul>
 
-      <script src="/upload.js"></script>
+     // <script src="/upload.js"></script>
     </div>
   );
 }
