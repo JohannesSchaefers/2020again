@@ -1,123 +1,137 @@
-// routes/home.tsx
+/** @jsx h */
 import { Handlers, PageProps } from "$fresh/server.ts";
+import { h } from "preact";
+import UploadForm from "../islands/UploadForm.tsx";
 
-// Define types for PageProps
+// Type definitions for the page data
 interface BucketObject {
   key: string;
-  url?: string; // Presigned URL for PDFs
+  url?: string;
 }
 
 interface Data {
-  bucketObjectsWithUrls?: BucketObject[]; // List of objects with keys and optional URLs from R2
-  error?: string; // Optional error message
+  bucketObjectsWithUrls?: BucketObject[];
+  error?: string;
 }
 
+// Helper to get environment variables safely
+function getEnv(name: string): string {
+  const value = Deno.env.get(name);
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+  return value;
+}
+
+// Function to fetch files from R2
+export async function getBucketObjects(): Promise<BucketObject[]> {
+  const accessKeyId = getEnv("R2_ACCESS_KEY_ID");
+  const secretAccessKey = getEnv("R2_SECRET_ACCESS_KEY");
+  const bucketName = getEnv("R2_BUCKET_NAME");
+  const endpoint = getEnv("R2_CUSTOM_DOMAIN") || getEnv("R2_ENDPOINT");
+  const region = "auto";
+
+  const { S3Client, ListObjectsV2Command, GetObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3?dts");
+  const { getSignedUrl } = await import("https://esm.sh/@aws-sdk/s3-request-presigner?dts");
+
+  const s3Client = new S3Client({
+    region,
+    endpoint,
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+    },
+    forcePathStyle: false,
+  });
+
+  const listCommand = new ListObjectsV2Command({ Bucket: bucketName });
+  const listResponse = await s3Client.send(listCommand);
+
+  const keys = listResponse.Contents?.map((obj) => obj.Key!).filter(Boolean) ?? [];
+
+  return await Promise.all(
+    keys.map(async (key) => {
+      let url: string | undefined;
+      if (key.toLowerCase().endsWith(".pdf")) {
+        try {
+          const getCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
+          url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
+        } catch {
+          url = undefined;
+        }
+      }
+      return { key, url };
+    })
+  );
+}
+
+// Handlers for fetching files and handling uploads
 export const handler: Handlers<Data> = {
   async GET(req, ctx) {
-    // Check for session cookie (replace with real auth check for production)
     const isAuthenticated = req.headers.get("cookie")?.includes("session=valid");
     if (!isAuthenticated) {
       return Response.redirect("/login", 302); // Redirect to login if not authenticated
     }
 
-    // R2 environment variables
-    const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
-    const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
-    const bucketName = Deno.env.get("R2_BUCKET_NAME");
-    const endpoint = Deno.env.get("R2_CUSTOM_DOMAIN") || Deno.env.get("R2_ENDPOINT");
-    const region = "auto"; // R2 uses 'auto' for region
+    try {
+      const bucketObjectsWithUrls = await getBucketObjects();
+      return ctx.render({ bucketObjectsWithUrls });
+    } catch (_err) {
+      return ctx.render({ error: "Failed to fetch bucket data" });
+    }
+  },
 
-    let bucketObjectsWithUrls: BucketObject[] = [];
-    let error: string | undefined;
+  async POST(req) {
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
 
-    if (accessKeyId && secretAccessKey && bucketName && endpoint) {
-      try {
-        // Import AWS SDK for S3 (ESM import; Deno-compatible with proper scoped URL)
-        const { S3Client, ListObjectsV2Command, GetObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3?dts");
-        const { getSignedUrl } = await import("https://esm.sh/@aws-sdk/s3-request-presigner?dts");
-
-        // Create S3 client configured for R2
-        const s3Client = new S3Client({
-          region,
-          endpoint,
-          credentials: {
-            accessKeyId,
-            secretAccessKey,
-          },
-          forcePathStyle: false, // Use virtual-hosted style for R2
-        });
-
-        // List objects in the bucket
-        const command = new ListObjectsV2Command({ Bucket: bucketName });
-        const response = await s3Client.send(command);
-
-        if (response.Contents) {
-          const keys = response.Contents.map((obj) => obj.Key!).filter(Boolean);
-          
-          // Generate presigned URLs only for PDFs
-          bucketObjectsWithUrls = await Promise.all(
-            keys.map(async (key) => {
-              let url: string | undefined;
-              if (key.toLowerCase().endsWith('.pdf')) {
-                try {
-                  const getCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
-                  url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 }); // 1 hour expiration
-                } catch (signErr) {
-                  console.error(`Failed to generate presigned URL for ${key}:`, signErr);
-                  // Fall back to no URL if signing fails
-                }
-              }
-              return { key, url };
-            })
-          );
-        }
-      } catch (err) {
-        // Type guard to narrow 'err' from unknown to Error
-        const message = err instanceof Error ? err.message : "An unknown error occurred";
-        error = `Failed to access R2 bucket: ${message}`;
-      }
-    } else {
-      error = "Missing R2 environment variables. Check your Deno Deploy settings.";
+    if (!file) {
+      return new Response("No file uploaded", { status: 400 });
     }
 
-    return ctx.render({ bucketObjectsWithUrls, error });
+    const accessKeyId = getEnv("R2_ACCESS_KEY_ID");
+    const secretAccessKey = getEnv("R2_SECRET_ACCESS_KEY");
+    const bucketName = getEnv("R2_BUCKET_NAME");
+    const endpoint = getEnv("R2_CUSTOM_DOMAIN") || getEnv("R2_ENDPOINT");
+    const region = "auto";
+
+    const { S3Client, PutObjectCommand } = await import("https://esm.sh/@aws-sdk/client-s3?dts");
+
+    const s3Client = new S3Client({
+      region,
+      endpoint,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+      forcePathStyle: false,
+    });
+
+    const arrayBuffer = await file.arrayBuffer();
+    const key = file.name;
+
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: new Uint8Array(arrayBuffer),
+      ContentType: file.type,
+    });
+
+    await s3Client.send(command);
+
+    return new Response(null, { status: 200 });
   },
 };
 
+// Main component rendering the page
 export default function Home({ data }: PageProps<Data>) {
   return (
     <div class="ml-4 text-blue-600">
       <h1 class="text-3xl font-bold">Welcome to the Homepage</h1>
-      {data.error && (
-        <p class="text-red-500 mt-4">{data.error}</p>
-      )}
-      {!data.error && (
-        <div class="mt-4">
-          <h2 class="text-2xl font-semibold">Gespeicherte Dateien:</h2>
-          {data.bucketObjectsWithUrls && data.bucketObjectsWithUrls.length > 0 ? (
-            <ul class="list-disc list-inside mt-2 space-y-1">
-              {data.bucketObjectsWithUrls.map((obj, index) => (
-                <li key={index} class="text-gray-800">
-                  {obj.url ? (
-                    <a
-                      href={obj.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="text-blue-500 hover:underline"
-                    >
-                      {obj.key} (PDF)
-                    </a>
-                  ) : (
-                    obj.key
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="text-gray-500 mt-2">No objects found in the bucket (or bucket is empty).</p>
-          )}
-        </div>
-      )}
+      {data.error && <p class="text-red-500 mt-4">{data.error}</p>}
+
+      {/* Island component for file upload and dynamic file list */}
+      <UploadForm initialFiles={data.bucketObjectsWithUrls ?? []} />
     </div>
   );
 }
