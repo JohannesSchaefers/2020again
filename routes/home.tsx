@@ -127,7 +127,7 @@ export const handler: Handlers<Data> = {
 export default function Home({ data }: PageProps<Data>) {
   return (
     <div class="ml-4 text-blue-600">
-      <h1 class="text-3xl font-bold">Welcome to the Homepage</h1>
+      <h1 class="text-3xl font-bold">Welcome to the Homepage!</h1>
       {data.error && <p class="text-red-500 mt-4">{data.error}</p>}
 
       {/* Island component for file upload and dynamic file list */}
